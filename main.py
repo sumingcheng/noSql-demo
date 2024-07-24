@@ -12,53 +12,49 @@ password = os.getenv("NEO4J_PASSWORD", "password")
 driver = GraphDatabase.driver(uri, auth=(username, password))
 
 
-# 添加员工节点的函数
-def add_employee(tx, name, job_title):
-    query = "CREATE (e:Employee {name: $name, jobTitle: $job_title}) RETURN e"
-    result = tx.run(query, name=name, job_title=job_title)
-    return result.peek()[0]  # 使用 peek() 以避免异常，仍旧假定返回至少一条记录
+# 添加政党节点的函数
+def add_party(tx, name, ideology):
+    query = "CREATE (p:Party {name: $name, ideology: $ideology}) RETURN p"
+    result = tx.run(query, name=name, ideology=ideology)
+    return result.peek()[0]
 
 
-# 创建两个员工之间的关系
-def add_relationship(tx, name1, name2, relationship_type):
+# 添加政府部门节点的函数
+def add_government_branch(tx, name, description):
+    query = "CREATE (g:Government {name: $name, description: $description}) RETURN g"
+    result = tx.run(query, name=name, description=description)
+    return result.peek()[0]
+
+
+# 创建政党与政府部门之间的关系
+def add_influence(tx, party_name, branch_name, influence_level):
     query = (
-        "MATCH (e1:Employee {name: $name1}), (e2:Employee {name: $name2}) "
-        "CREATE (e1)-[r:RELATIONSHIP {type: $relationship_type}]->(e2) "
+        "MATCH (p:Party {name: $party_name}), (g:Government {name: $branch_name}) "
+        "CREATE (p)-[r:INFLUENCES {level: $influence_level}]->(g) "
         "RETURN type(r)"
     )
-    result = tx.run(query, name1=name1, name2=name2, relationship_type=relationship_type)
-    return result.peek()[0]  # 使用 peek() 代替 single()
-
-
-# 通过姓名查找员工并返回其详细信息
-def find_employee(tx, name):
-    query = "MATCH (e:Employee {name: $name}) RETURN e.name, e.jobTitle"
-    result = tx.run(query, name=name)
-    return result.data()  # 使用 data() 以处理可能的多条记录
-
-
-# 更新员工的职位信息
-def update_job_title(tx, name, job_title):
-    query = "MATCH (e:Employee {name: $name}) SET e.jobTitle = $job_title RETURN e"
-    result = tx.run(query, name=name, job_title=job_title)
-    return result.peek()[0]  # 使用 peek() 代替 single()
-
-
-# 删除一个员工节点及其所有关系
-def delete_employee(tx, name):
-    query = "MATCH (e:Employee {name: $name}) DETACH DELETE e"
-    result = tx.run(query, name=name)
-    return result.summary().counters
+    result = tx.run(query, party_name=party_name, branch_name=branch_name, influence_level=influence_level)
+    return result.peek()[0]
 
 
 # 在会话中执行数据库操作
 with driver.session() as session:
-    session.execute_write(add_employee, "Alice", "Developer")
-    session.execute_write(add_employee, "Bob", "Analyst")
-    session.execute_write(add_relationship, "Alice", "Bob", "COLLEAGUE")
-    alice = session.execute_read(find_employee, "Alice")
-    session.execute_write(update_job_title, "Bob", "Senior Analyst")
-    bob = session.execute_read(find_employee, "Bob")
+    # 添加政党
+    session.execute_write(add_party, "Democratic", "Liberal")
+    session.execute_write(add_party, "Republican", "Conservative")
+
+    # 添加政府部门
+    session.execute_write(add_government_branch, "Executive", "执行部门")
+    session.execute_write(add_government_branch, "Legislative", "立法部门")
+    session.execute_write(add_government_branch, "Judicial", "司法部门")
+
+    # 创建影响力关系
+    session.execute_write(add_influence, "Democratic", "Executive", "Strong")
+    session.execute_write(add_influence, "Republican", "Legislative", "Strong")
+    session.execute_write(add_influence, "Democratic", "Judicial", "Moderate")
+    session.execute_write(add_influence, "Republican", "Executive", "Moderate")
 
 # 关闭数据库连接
 driver.close()
+
+# 查看关系 MATCH (n)-[r]->(m) RETURN n, r, m
